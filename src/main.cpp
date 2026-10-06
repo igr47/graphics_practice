@@ -1,8 +1,15 @@
+#include <algorithm>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <glm/ext/matrix_float4x4.hpp>
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/vector_float3.hpp>
+#include <glm/ext/vector_float4.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <cstddef>
-//#include <glad/glad.h>
-//#include <GLFW/glfw3.h>
+#include <glm/trigonometric.hpp>
 #include <iostream>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -20,9 +27,10 @@ layout (location = 2) in vec2 aTextCoord;
 
 out vec3 ourColor;
 out vec2 TextCoord;
+uniform mat4 transform;
 
 void main() {
-    gl_Position = vec4(aPos, 1.0);
+    gl_Position = transform * vec4(aPos, 1.0);
     ourColor = aColor;
     TextCoord = vec2(aTextCoord.x, 1.0 - aTextCoord.y);
 }
@@ -69,6 +77,10 @@ int main() {
         0, 1, 3, // first triangle 
         1, 2, 3  // second triangle
     };
+
+    glm::mat4 trans = glm::mat4(1.0f);
+    trans = glm::rotate(trans, glm::radians(90.0f), glm::vec3(0.0, 0.0, 1.0));
+    glm::scale(trans, glm::vec3(0.5, 0.5, 0.5));
 
     // ------ VAO & VBO ------
     unsigned int VAO, VBO, EBO;
@@ -171,6 +183,8 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, texture);
 
         glUniform1i(glGetUniformLocation(shaderProgram, "ourTexture"), 0);
+        unsigned int transformLoc = glGetUniformLocation(shaderProgram, "transform");
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans));
 
         glBindVertexArray(VAO);
         //glDrawArrays(GL_TRIANGLES, 0, 3);
