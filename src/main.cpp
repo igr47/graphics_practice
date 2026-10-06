@@ -23,6 +23,15 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
+void processInput(GLFWwindow* window);
+
+
+glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
+
 const char* vertexShaderSource = R"(
 #version 330 core
 layout (location = 0) in vec3 aPos;
@@ -130,7 +139,9 @@ int main() {
         1, 2, 3  // second triangle
     };
 
-    glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+    //glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+    //glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+    //glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
     // The cameras target. That is the place it is looking and that is at the centerthe intersection between the axes 
     glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
     // To get the camera direction we subtract the camera target from the camera position.
@@ -144,7 +155,7 @@ int main() {
 
     // Since we have the right  and the cmera diction which responds to the z-axis to get the y-axis which is the true up 
     // we will cross the camera direction and the camera right
-    glm::vec3 cameraUp = glm::cross(cameraDirection, cameraRight);
+    //glm::vec3 cameraUp = glm::cross(cameraDirection, cameraRight);
 
     //glm::mat4 trans = glm::mat4(1.0f);
     //trans = glm::rotate(trans, glm::radians(90.0f), glm::vec3(0.0, 0.0, 1.0));
@@ -152,6 +163,10 @@ int main() {
 
     //glm::mat4 model = glm::mat4(1.0f);
     //model = glm::rotate(model, glm::radians(-55.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
 
     glm::mat4 view = glm::mat4(1.0f);
     view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
@@ -247,9 +262,7 @@ int main() {
 
     // ---- Render Loop ----
     while (!glfwWindowShouldClose(window)) {
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            glfwSetWindowShouldClose(window, true);
-        }
+        processInput(window);
 
         glEnable(GL_DEPTH_TEST);
 
@@ -267,7 +280,8 @@ int main() {
         float camX = sin(glfwGetTime()) * radius;
         float camZ = cos(glfwGetTime()) * radius;
         glm::mat4 view;
-        view = glm::lookAt(glm::vec3(camX,0.0, camZ), glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0,1.0,0.0));
+        //view = glm::lookAt(glm::vec3(camX,0.0, camZ), glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0,1.0,0.0));
+        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
         //glm::mat4 model = glm::mat4(1.0f);
         //model = glm::rotate(model, (float)glfwGetTime() * glm::radians(50.0f), glm::vec3(0.5f, 1.0f, 0.0f));
         //unsigned int transformLoc = glGetUniformLocation(shaderProgram, "transform");
@@ -310,4 +324,19 @@ int main() {
     glDeleteProgram(shaderProgram);
     glfwTerminate();
     return 0;
+}
+
+void processInput(GLFWwindow* window) {
+    const float cameraSpeed = 2.5f * deltaTime;
+    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, true); 
+    } else if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+        cameraPos += cameraSpeed * cameraFront;
+    } else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        cameraPos -= cameraSpeed * cameraFront;
+    } else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    } else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    }
 }
