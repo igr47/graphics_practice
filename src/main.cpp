@@ -5,8 +5,10 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/quaternion_geometric.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/ext/vector_float4.hpp>
+#include <glm/geometric.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -128,6 +130,22 @@ int main() {
         1, 2, 3  // second triangle
     };
 
+    glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+    // The cameras target. That is the place it is looking and that is at the centerthe intersection between the axes 
+    glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
+    // To get the camera direction we subtract the camera target from the camera position.
+    glm::vec3 cameraDirection = glm::normalize(cameraPos - cameraTarget);
+
+    // We then want to get the right axis 
+    // To do so we first declare an up vector which points up in the world space 
+    // Then we will cross the up vector and the camera direction and since this will give a perpendicular which will be used as the x-axis
+    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 cameraRight = glm::normalize(glm::cross(up, cameraDirection));
+
+    // Since we have the right  and the cmera diction which responds to the z-axis to get the y-axis which is the true up 
+    // we will cross the camera direction and the camera right
+    glm::vec3 cameraUp = glm::cross(cameraDirection, cameraRight);
+
     //glm::mat4 trans = glm::mat4(1.0f);
     //trans = glm::rotate(trans, glm::radians(90.0f), glm::vec3(0.0, 0.0, 1.0));
     //glm::scale(trans, glm::vec3(0.5, 0.5, 0.5));
@@ -245,7 +263,12 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, texture);
 
         glUniform1i(glGetUniformLocation(shaderProgram, "ourTexture"), 0);
-        glm::mat4 model = glm::mat4(1.0f);
+        const float radius = 10.0f;
+        float camX = sin(glfwGetTime()) * radius;
+        float camZ = cos(glfwGetTime()) * radius;
+        glm::mat4 view;
+        view = glm::lookAt(glm::vec3(camX,0.0, camZ), glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0,1.0,0.0));
+        //glm::mat4 model = glm::mat4(1.0f);
         //model = glm::rotate(model, (float)glfwGetTime() * glm::radians(50.0f), glm::vec3(0.5f, 1.0f, 0.0f));
         //unsigned int transformLoc = glGetUniformLocation(shaderProgram, "transform");
         //glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans));
