@@ -18,16 +18,19 @@ void processInput(GLFWwindow* window);
 const char* vertexShaderSource = R"(
 #version 330 core 
 layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
 out vec3 FragPos;
+out vec3 Normal;
 
 void main () {
     FragPos = vec3(model * vec4(aPos, 1.0f));
     gl_Position = projection * view * vec4(FragPos, 1.0f);
+    Normal = mat3(transpose(inverse(model))) * aNormal;
 }
 )";
 
@@ -37,21 +40,23 @@ const char* fragmentShaderSource = R"(
 out vec4 FragColor;
 
 in vec3 FragPos;
+in vec3 Normal;
 
 uniform vec3 objectColor;
 uniform vec3 lightColor;
 uniform vec3 lightPos;
 
 void main() {
-    //float distance = length(lightPos - FragPos);
-    //float attenuation = 1.0 / (1.0 + 0.09 * distance + 0.032 * distance * distance);
+    vec3 normal = normalize(Normal);
+    vec3 lightDir = normalize(lightPos - FragPos);
+
+    float diff = max(dot(normal, lightDir), 0.0);
+    vec3 diffuse = diff * lightColor;
     
-    // Ambient + diffuse approximation
-    //vec3 result = (0.1 + 0.9 * attenuation) * lightColor * objectColor;
     float ambientStrength = 0.1;
     vec3 ambient = ambientStrength * lightColor;
 
-    vec3 result = ambient * objectColor;
+    vec3 result = (ambient + diffuse) * objectColor;
     FragColor = vec4(result, 1.0f);
 }
 )";
@@ -97,32 +102,66 @@ int main() {
 
     glEnable(GL_DEPTH_TEST); // Enable once, outside the loop
 
-    // 8 vertices, 3 floats each (X, Y, Z positions only)
-    float vertices[] = {
-        -0.5f, -0.5f, -0.5f, // 0
-         0.5f, -0.5f, -0.5f, // 1
-         0.5f,  0.5f, -0.5f, // 2
-        -0.5f,  0.5f, -0.5f, // 3
-        -0.5f, -0.5f,  0.5f, // 4
-         0.5f, -0.5f,  0.5f, // 5
-         0.5f,  0.5f,  0.5f, // 6
-        -0.5f,  0.5f,  0.5f  // 7
-    };
-
-    unsigned int indices[] = {
-        0, 1, 2, 2, 3, 0, // back face (-Z)
-        4, 6, 5, 6, 4, 7, // front face (+Z)
-        4, 7, 3, 3, 0, 4, // left face (-X)
-        1, 5, 6, 6, 2, 1, // right face (+X)
-        4, 0, 1, 1, 5, 4, // bottom face (-Y)
-        3, 7, 6, 6, 2, 3  // top face (+Y)
-    };
 
     glm::mat4 view = glm::mat4(1.0f);
     view = glm::translate(view, glm::vec3(0.0f, 0.0f, -5.0f)); // Moved back a bit
 
     glm::mat4 projection;
     projection = glm::perspective(glm::radians(45.0f), 800.0f/600.0f, 0.1f, 100.0f);
+
+    float vertices[] = {
+        // positions            // normals
+        // back face (-Z)
+        -0.5f, -0.5f, -0.5f,   0.0f,  0.0f, -1.0f,
+         0.5f, -0.5f, -0.5f,   0.0f,  0.0f, -1.0f,
+         0.5f,  0.5f, -0.5f,   0.0f,  0.0f, -1.0f,
+        -0.5f,  0.5f, -0.5f,   0.0f,  0.0f, -1.0f,
+
+        // front face (+Z)
+        -0.5f, -0.5f,  0.5f,   0.0f,  0.0f,  1.0f,
+         0.5f, -0.5f,  0.5f,   0.0f,  0.0f,  1.0f,
+         0.5f,  0.5f,  0.5f,   0.0f,  0.0f,  1.0f,
+        -0.5f,  0.5f,  0.5f,   0.0f,  0.0f,  1.0f,
+
+        // left face (-X)
+        -0.5f, -0.5f, -0.5f,  -1.0f,  0.0f,  0.0f,
+        -0.5f, -0.5f,  0.5f,  -1.0f,  0.0f,  0.0f,
+        -0.5f,  0.5f,  0.5f,  -1.0f,  0.0f,  0.0f,
+        -0.5f,  0.5f, -0.5f,  -1.0f,  0.0f,  0.0f,
+
+        // right face (+X)
+         0.5f, -0.5f, -0.5f,   1.0f,  0.0f,  0.0f,
+         0.5f, -0.5f,  0.5f,   1.0f,  0.0f,  0.0f,
+         0.5f,  0.5f,  0.5f,   1.0f,  0.0f,  0.0f,
+         0.5f,  0.5f, -0.5f,   1.0f,  0.0f,  0.0f,
+
+        // bottom face (-Y)
+        -0.5f, -0.5f, -0.5f,   0.0f, -1.0f,  0.0f,
+         0.5f, -0.5f, -0.5f,   0.0f, -1.0f,  0.0f,
+         0.5f, -0.5f,  0.5f,   0.0f, -1.0f,  0.0f,
+        -0.5f, -0.5f,  0.5f,   0.0f, -1.0f,  0.0f,
+
+        // top face (+Y)
+        -0.5f,  0.5f, -0.5f,   0.0f,  1.0f,  0.0f,
+         0.5f,  0.5f, -0.5f,   0.0f,  1.0f,  0.0f,
+         0.5f,  0.5f,  0.5f,   0.0f,  1.0f,  0.0f,
+        -0.5f,  0.5f,  0.5f,   0.0f,  1.0f,  0.0f
+    };
+
+    unsigned int indices[] = {
+        // back face (-Z)
+        0, 1, 2,  2, 3, 0,
+        // front face (+Z)
+        4, 5, 6,  6, 7, 4,
+        // left face (-X)
+        8, 9, 10, 10, 11, 8,
+        // right face (+X)
+        12, 13, 14, 14, 15, 12,
+        // bottom face (-Y)
+        16, 17, 18, 18, 19, 16,
+        // top face (+Y)
+        20, 21, 22, 22, 23, 20
+    };
 
     // Setup cube VAO
     unsigned int VAO, VBO, EBO;
@@ -135,8 +174,11 @@ int main() {
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     // Setup light VAO (same buffers, different VAO)
     unsigned int lightVAO;
@@ -144,7 +186,7 @@ int main() {
     glBindVertexArray(lightVAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
     // Compile main shader
