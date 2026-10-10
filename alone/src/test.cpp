@@ -14,6 +14,12 @@
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
 
+glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
+
 // Shader for the main cube with basic lighting
 const char* vertexShaderSource = R"(
 #version 330 core 
@@ -45,6 +51,7 @@ in vec3 Normal;
 uniform vec3 objectColor;
 uniform vec3 lightColor;
 uniform vec3 lightPos;
+uniform vec3 viewPos;
 
 void main() {
     vec3 normal = normalize(Normal);
@@ -52,11 +59,17 @@ void main() {
 
     float diff = max(dot(normal, lightDir), 0.0);
     vec3 diffuse = diff * lightColor;
+
+    float specularStrength = 0.5f;
+    vec3 viewDir = normalize(viewPos - FragPos);
+    vec3 reflectDir = reflect(-lightDir, normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 40);
+    vec3 specular = specularStrength * spec * lightColor;
     
     float ambientStrength = 0.1;
     vec3 ambient = ambientStrength * lightColor;
 
-    vec3 result = (ambient + diffuse) * objectColor;
+    vec3 result = (ambient + diffuse + specular) * objectColor;
     FragColor = vec4(result, 1.0f);
 }
 )";
@@ -68,6 +81,7 @@ layout (location = 0) in vec3 aPos;
 
 uniform mat4 model;
 uniform mat4 view;
+uniform vec3 viewPos;
 uniform mat4 projection;
 
 void main () {
@@ -189,33 +203,64 @@ int main() {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
+    int success; char infoLog[512];
     // Compile main shader
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
     glCompileShader(vertexShader);
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success); 
+    if (!success) {
+        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+        std::cout << "VERTEX::SHADER::COMPILATION:ERROR: " << infoLog << std::endl;
+    }
     
     unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
     glCompileShader(fragmentShader);
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success); 
+    if (!success) {
+        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
+        std::cout << "FRAGMENT::SHADER::COMPILATION:ERROR: " << infoLog << std::endl;
+    }
     
     unsigned int shaderProgram = glCreateProgram();
     glAttachShader(shaderProgram, vertexShader);
     glAttachShader(shaderProgram, fragmentShader);
     glLinkProgram(shaderProgram);
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+        std::cout << "SHADER::PROGRAM::LINKING::ERROR: " << infoLog << std::endl;
+    }
 
     // Compile light shader
     unsigned int lightVertexShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(lightVertexShader, 1, &lightVertexShaderSource, NULL);
     glCompileShader(lightVertexShader);
+    glGetShaderiv(lightVertexShader, GL_COMPILE_STATUS, &success); 
+    if (!success) {
+        glGetShaderInfoLog(lightVertexShader, 512, NULL, infoLog);
+        std::cout << "LIGHT::VERTEX::SHADER::COMPILATION:ERROR: " << infoLog << std::endl;
+    }
     
     unsigned int lightFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(lightFragmentShader, 1, &lightFragmentShaderSource, NULL);
     glCompileShader(lightFragmentShader);
+    glGetShaderiv(lightFragmentShader, GL_COMPILE_STATUS, &success); 
+    if (!success) {
+        glGetShaderInfoLog(lightFragmentShader, 512, NULL, infoLog);
+        std::cout << "LIGHT::FRAGMENT::SHADER::COMPILATION:ERROR: " << infoLog << std::endl;
+    }
     
     unsigned int lightShaderProgram = glCreateProgram();
     glAttachShader(lightShaderProgram, lightVertexShader);
     glAttachShader(lightShaderProgram, lightFragmentShader);
     glLinkProgram(lightShaderProgram);
+    glGetProgramiv(lightShaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(lightShaderProgram, 512, NULL, infoLog);
+        std::cout << "LIGHT::SHADER::PROGRAM::LINKING::ERROR: " << infoLog << std::endl;
+    }
 
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
@@ -226,6 +271,10 @@ int main() {
     glm::vec3 lightColor = glm::vec3(1.0f, 0.9f, 0.8f);
     glm::vec3 objectColor = glm::vec3(0.8f, 0.3f, 0.2f); // Reddish cube
 
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
+
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
 
@@ -234,6 +283,10 @@ int main() {
 
         // Draw main cube
         glUseProgram(shaderProgram);
+
+        glm::mat4 view;
+        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+
         
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::rotate(model, glm::radians(30.0f), glm::vec3(0.5f, 1.0f, 0.0f));
@@ -246,6 +299,7 @@ int main() {
         glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, glm::value_ptr(lightColor));
         glUniform3fv(glGetUniformLocation(shaderProgram, "objectColor"), 1, glm::value_ptr(objectColor));
         glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos"), 1, glm::value_ptr(lightPos));
+        glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(cameraPos));
 
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
@@ -254,6 +308,8 @@ int main() {
         glUseProgram(lightShaderProgram);
         
         glm::mat4 lightModel = glm::mat4(1.0f);
+        lightPos.x = 1.0f + sin(glfwGetTime()) * 2.0f;
+        lightPos.y = sin(glfwGetTime() / 2.0f) * 1.0f;
         lightModel = glm::translate(lightModel, lightPos);
         lightModel = glm::scale(lightModel, glm::vec3(0.2f)); // Small cube
 
@@ -280,8 +336,17 @@ int main() {
 }
 
 void processInput(GLFWwindow* window) {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-        glfwSetWindowShouldClose(window, true);
+    const float cameraSpeed = 2.5f * deltaTime;
+    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, true); 
+    } else if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+        cameraPos += cameraSpeed * cameraFront;
+    } else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        cameraPos -= cameraSpeed * cameraFront;
+    } else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    } else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
     }
 }
 
