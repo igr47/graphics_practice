@@ -63,10 +63,15 @@ struct Material {
 };
 
 struct Light {
-    vec3 position;
+    //vec3 position;
+    vec3 direction;
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
+
+    float constant;
+    float linear;
+    float quadratic;
 };
 
 uniform vec3 objectColor;
@@ -79,18 +84,24 @@ uniform Light light;
 
 void main() {
     vec3 normal = normalize(Normal);
-    vec3 lightDir = normalize(lightPos - FragPos);
+    //vec3 lightDir = normalize(lightPos - FragPos);
+    float distance = length(lightPos - FragPos);
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));
+    vec3 lightDir = normalize(-light.direction);
 
     float diff = max(dot(normal, lightDir), 0.0);
     vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuse, TextCoord));
+    diffuse *= attenuation;
 
     float specularStrength = 0.5f;
     vec3 viewDir = normalize(viewPos - FragPos);
     vec3 reflectDir = reflect(-lightDir, normal);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
     vec3 specular = light.specular * spec * vec3(texture(material.specular, TextCoord));
+    specular *= attenuation;
     
     vec3 ambient = light.ambient * vec3(texture(material.diffuse, TextCoord));
+    ambient *= attenuation;
 
     vec3 result = (ambient + diffuse + specular) * objectColor;
     FragColor = vec4(result, 1.0f);
@@ -191,7 +202,18 @@ int main() {
         -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 1.0f
     };
 
-
+    glm::vec3 cubePositions[] = {
+        glm::vec3( 0.0f,  0.0f,  0.0f), 
+        glm::vec3( 2.0f,  5.0f, -15.0f), 
+        glm::vec3(-1.5f, -2.2f, -2.5f),  
+        glm::vec3(-3.8f, -2.0f, -12.3f),  
+        glm::vec3( 2.4f, -0.4f, -3.5f),  
+        glm::vec3(-1.7f,  3.0f, -7.5f),  
+        glm::vec3( 1.3f, -2.0f, -2.5f),  
+        glm::vec3( 1.5f,  2.0f, -2.5f), 
+        glm::vec3( 1.5f,  0.2f, -1.5f), 
+        glm::vec3(-1.3f,  1.0f, -1.5f)  
+    };
 
     unsigned int indices[] = {
         // back face (-Z)
@@ -363,11 +385,14 @@ int main() {
         glm::mat4 view;
         view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
-        
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::rotate(model, (float)glfwGetTime() * glm::radians(30.0f), glm::vec3(0.5f, 1.0f, 0.0f));
-
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        /*for(size_t i = 0; i < 10; ++i) {
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, cubePositions[i]);
+            float angles = 20.0f * i;
+            model = glm::rotate(model, *(float)glfwGetTime() * glm::radians(angles), glm::vec3(1.0f, 0.3f, 0.5f));
+            glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }*/
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
         
@@ -394,13 +419,29 @@ int main() {
         glm::vec3 ambient = glm::vec3(0.2f, 0.2f, 0.2f);
         glm::vec3 diffuse = glm::vec3(0.5f, 0.5f, 0.5f);
         glm::vec3 specular = glm::vec3(1.0f, 1.0f, 1.0f);
+        glm::vec3 direction = glm::vec3(-0.2f, -1.0f, -0.3f);
+        float constant = 1.0f;
+        float quadratic = 0.09f;
+        float linear = 0.032f;
         glUniform3fv(glGetUniformLocation(shaderProgram, "light.ambient"), 1, glm::value_ptr(ambient));
         glUniform3fv(glGetUniformLocation(shaderProgram, "light.diffuse"), 1, glm::value_ptr(diffuse));
         glUniform3fv(glGetUniformLocation(shaderProgram, "light.specular"), 1, glm::value_ptr(specular));
+        glUniform3fv(glGetUniformLocation(shaderProgram, "light.direction"), 1, glm::value_ptr(direction));
+        glUniform1f(glGetUniformLocation(shaderProgram, "light.constant"), constant);
+        glUniform1f(glGetUniformLocation(shaderProgram, "light.quadratic"), quadratic);
+        glUniform1f(glGetUniformLocation(shaderProgram, "light.linear"), linear);
 
         glBindVertexArray(VAO);
+        for(size_t i = 0; i < 10; ++i) {
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, cubePositions[i]);
+            float angles = 20.0f * i;
+            model = glm::rotate(model, /*(float)glfwGetTime() */ glm::radians(angles), glm::vec3(1.0f, 0.3f, 0.5f));
+            glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
         //glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
+        //glDrawArrays(GL_TRIANGLES, 0, 36);
 
         // Draw light source cube (smaller)
         glUseProgram(lightShaderProgram);
