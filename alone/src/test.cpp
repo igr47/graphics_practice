@@ -58,7 +58,7 @@ in vec2 TextCoord;
 
 struct Material {
     sampler2D diffuse;
-    vec3 specular;
+    sampler2D specular;
     float shininess;
 };
 
@@ -88,7 +88,7 @@ void main() {
     vec3 viewDir = normalize(viewPos - FragPos);
     vec3 reflectDir = reflect(-lightDir, normal);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-    vec3 specular = light.specular * (spec * material.specular);
+    vec3 specular = light.specular * spec * vec3(texture(material.specular, TextCoord));
     
     vec3 ambient = light.ambient * vec3(texture(material.diffuse, TextCoord));
 
@@ -365,7 +365,7 @@ int main() {
 
         
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::rotate(model, glm::radians(30.0f), glm::vec3(0.5f, 1.0f, 0.0f));
+        model = glm::rotate(model, (float)glfwGetTime() * glm::radians(30.0f), glm::vec3(0.5f, 1.0f, 0.0f));
 
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
@@ -379,12 +379,16 @@ int main() {
 
         glm::vec3 Ambient = glm::vec3(1.0f, 0.5f, 0.31f);
         glm::vec3 Diffuse = glm::vec3(1.0f, 0.5f, 0.31f);
-        glm::vec3 Specular = glm::vec3(0.5f, 0.5f, 0.5f);
+        //glm::vec3 Specular = glm::vec3(0.5f, 0.5f, 0.5f);
+        unsigned int Specular;
         float Shininess = 32.0f;
         //glUniform3fv(glGetUniformLocation(shaderProgram, "material.ambient"), 1, glm::value_ptr(Ambient));
         //glUniform3fv(glGetUniformLocation(shaderProgram, "material.diffuse"), 1, glm::value_ptr(Diffuse));
         glUniform1i(glGetUniformLocation(shaderProgram, "material.diffuse"), 0);
-        glUniform3fv(glGetUniformLocation(shaderProgram, "material.specular"), 1, glm::value_ptr(Specular));
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, Specular);
+        glUniform1i(glGetUniformLocation(shaderProgram, "material.specular"), 1);
+        //glUniform3fv(glGetUniformLocation(shaderProgram, "material.specular"), 1, glm::value_ptr(Specular));
         glUniform1f(glGetUniformLocation(shaderProgram, "material.shininess"), Shininess);
 
         glm::vec3 ambient = glm::vec3(0.2f, 0.2f, 0.2f);
