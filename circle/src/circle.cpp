@@ -12,6 +12,10 @@
 #include <vector>
 #include <cmath>
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 void framebuffer_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
 struct Vertex {
@@ -67,6 +71,14 @@ int main() {
         return -1;
     }
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
     glCompileShader(vertexShader);
@@ -119,6 +131,8 @@ int main() {
 
     bool dkeyWasPressed = false;
 
+    int targetBallCount = 1;
+
     float lastTime = (float)glfwGetTime();
 
     while (!glfwWindowShouldClose(window)) {
@@ -127,7 +141,19 @@ int main() {
         glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        //circlePos = bounce(circlePos, velocityY ,lastTime);
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::Begin("Controlls");
+
+        ImGui::SliderInt("BallCount", &targetBallCount, 0, 100);
+
+        if (ImGui::Button("Reset")) targetBallCount = 1;
+
+        ImGui::Text("Currently Active: %d", (int)balls.size());
+
+        ImGui::End();
  
         glUseProgram(shaderProgram);
 
@@ -135,12 +161,7 @@ int main() {
         glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
         float aspect = (float)fbWidth / (float)fbHeight;
 
-        glm::mat4 projection = glm::ortho(-aspect, aspect, -1.0f, 1.0f, -1.0f, 1.0f);
-
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-
-        bool dkeyPressed = glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
-        if (dkeyPressed && !dkeyWasPressed) {
+        while ((int)balls.size() < targetBallCount) {
             float randX = -aspect + 0.2f + static_cast<float>(rand()) / RAND_MAX * (2.0f * aspect -0.4f);
             glm::vec4 randColor(
                     static_cast<float>(rand()) / RAND_MAX,
@@ -151,7 +172,15 @@ int main() {
             balls.push_back({glm::vec3(randX, 0.5f, 0.0f), 0.0f, randColor});
         }
 
-        dkeyWasPressed = dkeyPressed;
+        while ((int)balls.size() > targetBallCount) {
+            balls.pop_back();
+        }
+        
+        glm::mat4 projection = glm::ortho(-aspect, aspect, -1.0f, 1.0f, -1.0f, 1.0f);
+
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+
+        //dkeyWasPressed = dkeyPressed;
 
         float currentTime = (float)glfwGetTime();
         float dt = currentTime - lastTime;
@@ -163,10 +192,19 @@ int main() {
             draw(shaderProgram, VAO, ball.color, (GLsizei)circleVerts.size());
         }
 
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(window);
         glfwPollEvents();
 
     }
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+
+    ImGui::DestroyContext();
+
     glfwTerminate();
     return 0;
 }
