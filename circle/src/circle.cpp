@@ -9,6 +9,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 #include <vector>
+#include <cmath>
 
 void framebuffer_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
@@ -16,15 +17,17 @@ struct Vertex {
     glm::vec3 pos;
 };
 std::vector<Vertex> drawCircle(float radius, int segments);
+glm::vec3 bounce(glm::vec3 circlePos, float &velocityY, float &lastTime);
 
 const char* vertexShaderSource = R"(
 #version 330 core 
 layout (location = 0) in vec3 aPos;
 
 uniform mat4 projection;
+uniform vec3 offset;
 
 void main() {
-    gl_Position = projection * vec4(aPos, 1.0);
+    gl_Position = projection * vec4(aPos + offset, 1.0);
 }
 )";
 
@@ -100,12 +103,32 @@ int main() {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
     glEnableVertexAttribArray(0);
 
+    glm::vec3 circlePos = glm::vec3(0.0f, 0.0f, 0.0f);
+    float velocityY = 0.0f;
+
+    float lastTime = (float)glfwGetTime();
+
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
 
         glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        /*float currentTime = (float)glfwGetTime();
+        float dt = currentTime - lastTime;
+        lastTime = currentTime;
+
+        velocityY += gravity * dt;
+        circlePos.y += velocityY * dt;
+
+        if (circlePos.y < floorY) {
+            circlePos.y = floorY;
+            velocityY = -velocityY * restitution;
+
+            if(std::fabs(velocityY) < 0.1f) velocityY = 0.0f;
+        }*/
+        circlePos = bounce(circlePos, velocityY ,lastTime);
+ 
         glUseProgram(shaderProgram);
 
         int fbWidth, fbHeight;
@@ -115,6 +138,7 @@ int main() {
         glm::mat4 projection = glm::ortho(-aspect, aspect, -1.0f, 1.0f, -1.0f, 1.0f);
 
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniform3fv(glGetUniformLocation(shaderProgram, "offset"), 1, glm::value_ptr(circlePos));
 
         //glUseProgram(shaderProgram);
 
@@ -132,6 +156,30 @@ int main() {
     glfwTerminate();
     return 0;
 }
+
+
+glm::vec3 bounce(glm::vec3 circlePos, float &velocityY ,float &lastTime) {
+    const float gravity = -2.5f;
+    const float floorY = -0.9f;
+
+    const float restitution = 0.7f;
+
+    float currentTime = (float)glfwGetTime();
+    float dt = currentTime - lastTime;
+    lastTime = currentTime;
+
+    velocityY += gravity * dt;
+    circlePos.y += velocityY * dt;
+
+    if (circlePos.y < floorY) {
+        circlePos.y = floorY;
+        velocityY = -velocityY * restitution;
+
+        if(std::fabs(velocityY) < 0.1f) velocityY = 0.0f;
+    }
+    return circlePos;
+}
+
 
 void framebuffer_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
