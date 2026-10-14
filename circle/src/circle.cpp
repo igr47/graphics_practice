@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <cstdlib>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/ext/matrix_clip_space.hpp>
@@ -16,8 +17,16 @@ void processInput(GLFWwindow* window);
 struct Vertex {
     glm::vec3 pos;
 };
+
+struct Ball {
+    glm::vec3 pos;
+    float velocityY;
+    glm::vec4 color;
+};
+
 std::vector<Vertex> drawCircle(float radius, int segments);
-glm::vec3 bounce(glm::vec3 circlePos, float &velocityY, float &lastTime);
+glm::vec3 bounce(glm::vec3 circlePos, float &velocityY, float dt);
+void draw(GLuint shaderProgram, GLuint vao, glm::vec4 color, GLsizei vertexCount);
 
 const char* vertexShaderSource = R"(
 #version 330 core 
@@ -103,8 +112,12 @@ int main() {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
     glEnableVertexAttribArray(0);
 
-    glm::vec3 circlePos = glm::vec3(0.0f, 0.0f, 0.0f);
-    float velocityY = 0.0f;
+    //glm::vec3 circlePos = glm::vec3(0.0f, 0.0f, 0.0f);
+    //float velocityY = 0.0f;
+    std::vector<Ball> balls;
+    balls.push_back({ glm::vec3(0.0f, 0.0f, 0.0f), 0.0f, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)});
+
+    bool dkeyWasPressed = false;
 
     float lastTime = (float)glfwGetTime();
 
@@ -114,20 +127,7 @@ int main() {
         glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        /*float currentTime = (float)glfwGetTime();
-        float dt = currentTime - lastTime;
-        lastTime = currentTime;
-
-        velocityY += gravity * dt;
-        circlePos.y += velocityY * dt;
-
-        if (circlePos.y < floorY) {
-            circlePos.y = floorY;
-            velocityY = -velocityY * restitution;
-
-            if(std::fabs(velocityY) < 0.1f) velocityY = 0.0f;
-        }*/
-        circlePos = bounce(circlePos, velocityY ,lastTime);
+        //circlePos = bounce(circlePos, velocityY ,lastTime);
  
         glUseProgram(shaderProgram);
 
@@ -138,16 +138,30 @@ int main() {
         glm::mat4 projection = glm::ortho(-aspect, aspect, -1.0f, 1.0f, -1.0f, 1.0f);
 
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-        glUniform3fv(glGetUniformLocation(shaderProgram, "offset"), 1, glm::value_ptr(circlePos));
 
-        //glUseProgram(shaderProgram);
+        bool dkeyPressed = glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
+        if (dkeyPressed && !dkeyWasPressed) {
+            float randX = -aspect + 0.2f + static_cast<float>(rand()) / RAND_MAX * (2.0f * aspect -0.4f);
+            glm::vec4 randColor(
+                    static_cast<float>(rand()) / RAND_MAX,
+                    static_cast<float>(rand()) / RAND_MAX,
+                    static_cast<float>(rand()) / RAND_MAX,
+                    1.0f
+            );
+            balls.push_back({glm::vec3(randX, 0.5f, 0.0f), 0.0f, randColor});
+        }
 
-        glm::vec4 circleColor = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
-        glUniform4fv(glGetUniformLocation(shaderProgram, "color"), 1, glm::value_ptr(circleColor));
+        dkeyWasPressed = dkeyPressed;
 
-        glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLE_FAN, 0, (GLsizei)circleVerts.size());
-        glBindVertexArray(0);
+        float currentTime = (float)glfwGetTime();
+        float dt = currentTime - lastTime;
+        lastTime = currentTime;
+
+        for (auto& ball : balls) {
+            ball.pos = bounce(ball.pos, ball.velocityY, dt);
+            glUniform3fv(glGetUniformLocation(shaderProgram, "offset"), 1, glm::value_ptr(ball.pos));
+            draw(shaderProgram, VAO, ball.color, (GLsizei)circleVerts.size());
+        }
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -157,16 +171,18 @@ int main() {
     return 0;
 }
 
+void draw(GLuint shaderProgram, GLuint vao, glm::vec4 color, GLsizei vertexCount) {
+    glUniform4fv(glGetUniformLocation(shaderProgram, "color"), 1, glm::value_ptr(color));
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, vertexCount);
+    glBindVertexArray(0);
+}
 
-glm::vec3 bounce(glm::vec3 circlePos, float &velocityY ,float &lastTime) {
+glm::vec3 bounce(glm::vec3 circlePos, float &velocityY , float dt) {
     const float gravity = -2.5f;
     const float floorY = -0.9f;
 
     const float restitution = 0.7f;
-
-    float currentTime = (float)glfwGetTime();
-    float dt = currentTime - lastTime;
-    lastTime = currentTime;
 
     velocityY += gravity * dt;
     circlePos.y += velocityY * dt;
