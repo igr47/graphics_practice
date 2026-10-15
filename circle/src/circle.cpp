@@ -5,6 +5,7 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/ext/vector_float4.hpp>
+#include <glm/geometric.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -24,13 +25,16 @@ struct Vertex {
 
 struct Ball {
     glm::vec3 pos;
-    float velocityY;
+    glm::vec2 velocity;
     glm::vec4 color;
+    float radius; // Needed for collision radius
 };
 
 std::vector<Vertex> drawCircle(float radius, int segments);
-glm::vec3 bounce(glm::vec3 circlePos, float &velocityY, float dt);
+//glm::vec3 bounce(glm::vec3 circlePos, float &velocityY, float dt);
 void draw(GLuint shaderProgram, GLuint vao, glm::vec4 color, GLsizei vertexCount);
+void applyPairForces(std::vector<Ball>& balls, float interactionRadius, float repulsionK, float dt);
+void integateAndCollide(std::vector<Ball>& balls,float dt, float aspect, float gravity, float damping, float restitution);
 
 const char* vertexShaderSource = R"(
 #version 330 core 
@@ -127,7 +131,7 @@ int main() {
     //glm::vec3 circlePos = glm::vec3(0.0f, 0.0f, 0.0f);
     //float velocityY = 0.0f;
     std::vector<Ball> balls;
-    balls.push_back({ glm::vec3(0.0f, 0.0f, 0.0f), 0.0f, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)});
+    balls.push_back({ glm::vec3(0.0f, 0.0f, 0.0f), glm::vec2(0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 1.0f, 1.0f), 0.1f});
 
     bool dkeyWasPressed = false;
 
@@ -169,7 +173,7 @@ int main() {
                     static_cast<float>(rand()) / RAND_MAX,
                     1.0f
             );
-            balls.push_back({glm::vec3(randX, 0.5f, 0.0f), 0.0f, randColor});
+            balls.push_back({glm::vec3(randX, 0.5f, 0.0f), glm::vec2(0.0f, 0.0f), randColor, 0.1f});
         }
 
         while ((int)balls.size() > targetBallCount) {
@@ -185,9 +189,19 @@ int main() {
         float currentTime = (float)glfwGetTime();
         float dt = currentTime - lastTime;
         lastTime = currentTime;
+        if (dt > 0.05f) dt = 0.05f;
+
+        const float gravity = -0.8f;
+        const float damping = 0.985f;
+        const float restitution = 0.3f;
+        const float interactionRadius = 0.22f;
+        const float repulsionK = 40.0f;
+
+        applyPairForces(balls, interactionRadius, repulsionK, dt);
+        integateAndCollide(balls, dt, aspect, gravity, damping, restitution);
 
         for (auto& ball : balls) {
-            ball.pos = bounce(ball.pos, ball.velocityY, dt);
+            //ball.pos = bounce(ball.pos, ball.velocityY, dt);
             glUniform3fv(glGetUniformLocation(shaderProgram, "offset"), 1, glm::value_ptr(ball.pos));
             draw(shaderProgram, VAO, ball.color, (GLsizei)circleVerts.size());
         }
@@ -216,7 +230,7 @@ void draw(GLuint shaderProgram, GLuint vao, glm::vec4 color, GLsizei vertexCount
     glBindVertexArray(0);
 }
 
-glm::vec3 bounce(glm::vec3 circlePos, float &velocityY , float dt) {
+/*glm::vec3 bounce(glm::vec3 circlePos, float &velocityY , float dt) {
     const float gravity = -2.5f;
     const float floorY = -0.9f;
 
@@ -232,8 +246,70 @@ glm::vec3 bounce(glm::vec3 circlePos, float &velocityY , float dt) {
         if(std::fabs(velocityY) < 0.1f) velocityY = 0.0f;
     }
     return circlePos;
+}*/
+
+void applyPairForces(std::vector<Ball>& balls, float interactionRadius, float repulsionK, float dt) {
+    const int n = (int)balls.size();
+    for (int i = 0; i < n; ++i) {
+        for (int j = i + 1; j < n; ++j) {
+            glm::vec2 delta = glm::vec2(balls[j].pos - balls[i].pos);
+            float dist = glm::length(delta);
+            if (dist < 0.001f || dist > interactionRadius) continue;
+
+            glm::vec2 dir = delta / dist;
+            // Linear repulsion 
+            float mag = repulsionK * (interactionRadius - dist);
+
+            // Push appart(equal and opposite). Mass of 1 is assumed 
+            balls[i].velocity -= dir * mag * dt;
+            balls[j].velocity += dir * mag * dt;
+        }
+    }
 }
 
+void integateAndCollide(std::vector<Ball>& balls,float dt, float aspect, float gravity, float damping, float restitution) {
+    const float floorY = -0.9f;
+    const float cellingY = 0.9f;
+    float leftX = -aspect + 0.1f;
+    float rightX = aspect - 0.1f;
+
+    for (auto& b : balls) {
+        // gravity 
+        b.velocity.y += gravity * dt;
+
+        // Dampint (mild to prevent liquid from boiling forever)
+        b.velocity *= damping;
+
+        // Integrate position 
+        b.pos.x += b.velocity.x * dt;
+        b.pos.y += b.velocity.y * dt;
+
+        // Floor 
+        if (b.pos.y < floorY) {
+            b.pos.y = floorY;
+            b.velocity.y = -b.velocity.y * restitution;
+            if (std::fabs(b.velocity.y) < 0.05f) b.velocity.y = 0.0f;
+        }
+
+        // Celling 
+        if (b.pos.y > cellingY) {
+            b.pos.y = cellingY;
+            b.velocity.y = -b.velocity.y * restitution;
+        }
+
+        // Left wall 
+        if (b.pos.x < leftX) {
+            b.pos.x = leftX;
+            b.velocity.x = -b.velocity.x * restitution;
+        }
+
+        // Right wall 
+        if (b.pos.x > rightX) {
+            b.pos.x = rightX;
+            b.velocity.x = -b.velocity.x * restitution;
+        }
+    }
+}
 
 void framebuffer_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
