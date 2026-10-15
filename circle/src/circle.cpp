@@ -115,7 +115,7 @@ int main() {
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
-    auto circleVerts = drawCircle(0.1f, 64);
+    auto circleVerts = drawCircle(0.01f, 64);
 
     unsigned int VAO, VBO;
     glGenVertexArrays(1, &VAO);
@@ -151,7 +151,7 @@ int main() {
 
         ImGui::Begin("Controlls");
 
-        ImGui::SliderInt("BallCount", &targetBallCount, 0, 100);
+        ImGui::SliderInt("BallCount", &targetBallCount, 0, 500);
 
         if (ImGui::Button("Reset")) targetBallCount = 1;
 
