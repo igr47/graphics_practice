@@ -63,81 +63,134 @@ void main() {
 }
 )";
 
-// Generates vertices for a cuboid (size 1x1x1, centered at origin)
-std::vector<float> getCubeVertices() {
-    return {
-        // Positions          // Normals
-        // Back face
-        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-         0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-        // Front face
-        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
-         0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
-         0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
-         0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
-        // Left face
-        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
-        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
-        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
-        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
-        -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
-        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
-        // Right face
-         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
-         0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
-         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
-         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
-         0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
-         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
-        // Bottom face
-        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
-         0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
-         0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-         0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
-        // Top face
-        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
-         0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
-         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f
-    };
+// ---------------------------------------------------------------------------
+// Mesh helper: one VAO with a triangle index buffer (filled surface)
+// and a line index buffer (dark outline / segment lines).
+// ---------------------------------------------------------------------------
+struct Mesh {
+    unsigned int VAO = 0, VBO = 0, triEBO = 0, lineEBO = 0;
+    GLsizei triCount = 0, lineCount = 0;
+};
+
+Mesh createMesh(const std::vector<float>& vertices,
+                const std::vector<unsigned int>& tris,
+                const std::vector<unsigned int>& lines) {
+    Mesh m;
+    m.triCount  = (GLsizei)tris.size();
+    m.lineCount = (GLsizei)lines.size();
+
+    glGenVertexArrays(1, &m.VAO);
+    glGenBuffers(1, &m.VBO);
+    glGenBuffers(1, &m.triEBO);
+    glGenBuffers(1, &m.lineEBO);
+
+    glBindVertexArray(m.VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m.VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.lineEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, lines.size() * sizeof(unsigned int), lines.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.triEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, tris.size() * sizeof(unsigned int), tris.data(), GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glBindVertexArray(0);
+    return m;
 }
 
-// Generates a UV sphere (radius 0.5, centered at origin)
-std::vector<float> getSphereVertices(int sectors, int stacks) {
-    std::vector<float> vertices;
-    float radius = 0.5f;
-    for (int i = 0; i <= stacks; ++i) {
-        float v = i / (float)stacks;
-        float phi = v * glm::pi<float>();
-        for (int j = 0; j <= sectors; ++j) {
-            float u = j / float(sectors);
-            float theta = u * (glm::pi<float>() * 2);
+// Builds triangle + line indices for a grid of (rings x (sectors+1)) vertices
+void gridIndices(int rings, int sectors,
+                 std::vector<unsigned int>& tris, std::vector<unsigned int>& lines) {
+    for (int i = 0; i < rings - 1; ++i) {
+        for (int j = 0; j < sectors; ++j) {
+            unsigned int first  = i * (sectors + 1) + j;
+            unsigned int second = first + sectors + 1;
+            tris.insert(tris.end(), { first, second, first + 1, second, second + 1, first + 1 });
+            lines.insert(lines.end(), { first, second });   // lengthwise line
+        }
+    }
+    for (int i = 0; i < rings; ++i) {
+        for (int j = 0; j < sectors; ++j) {
+            unsigned int a = i * (sectors + 1) + j;
+            lines.insert(lines.end(), { a, a + 1 });         // ring line
+        }
+    }
+}
 
+// Unit-diameter sphere (radius 0.5). Scale it to get spheres / ellipsoids.
+Mesh createSphereMesh(int sectors, int stacks) {
+    std::vector<float> v;
+    for (int i = 0; i <= stacks; ++i) {
+        float phi = (i / (float)stacks) * glm::pi<float>();
+        for (int j = 0; j <= sectors; ++j) {
+            float theta = (j / (float)sectors) * glm::pi<float>() * 2.0f;
             float x = cos(theta) * sin(phi);
             float y = cos(phi);
             float z = sin(theta) * sin(phi);
-
-            // Positions 
-            vertices.push_back(x * radius);
-            vertices.push_back(y * radius);
-            vertices.push_back(z * radius);
-            // Normals
-            vertices.push_back(x);
-            vertices.push_back(y);
-            vertices.push_back(z);
+            v.insert(v.end(), { x * 0.5f, y * 0.5f, z * 0.5f, x, y, z });
         }
     }
-    return vertices;
+    std::vector<unsigned int> tris, lines;
+    gridIndices(stacks + 1, sectors, tris, lines);
+    return createMesh(v, tris, lines);
+}
+
+// Capsule along the Y axis, centered at origin: a cylinder with rounded ends.
+// totalLength includes both end caps.
+Mesh createCapsuleMesh(float radius, float totalLength, int sectors = 12, int capStacks = 4) {
+    float cylHalf = std::max(0.0f, totalLength * 0.5f - radius);
+    std::vector<float> v;
+    int rings = 0;
+    auto addRing = [&](float phi, float yOffset) {
+        for (int j = 0; j <= sectors; ++j) {
+            float theta = (j / (float)sectors) * glm::pi<float>() * 2.0f;
+            float nx = cos(theta) * sin(phi);
+            float ny = cos(phi);
+            float nz = sin(theta) * sin(phi);
+            v.insert(v.end(), { nx * radius, ny * radius + yOffset, nz * radius, nx, ny, nz });
+        }
+        rings++;
+    };
+    const float halfPi = glm::pi<float>() * 0.5f;
+    for (int k = 0; k <= capStacks; ++k) addRing(halfPi * k / capStacks,           +cylHalf); // top cap
+    for (int k = 0; k <= capStacks; ++k) addRing(halfPi + halfPi * k / capStacks,  -cylHalf); // bottom cap
+
+    std::vector<unsigned int> tris, lines;
+    gridIndices(rings, sectors, tris, lines);
+    return createMesh(v, tris, lines);
+}
+
+// Unit cube (1x1x1, centered at origin) with hard edges
+Mesh createCubeMesh() {
+    struct Face { glm::vec3 n, u, v; };
+    const Face faces[6] = {
+        { { 0, 0, 1}, { 1, 0, 0}, {0, 1, 0} },
+        { { 0, 0,-1}, {-1, 0, 0}, {0, 1, 0} },
+        { { 1, 0, 0}, { 0, 0,-1}, {0, 1, 0} },
+        { {-1, 0, 0}, { 0, 0, 1}, {0, 1, 0} },
+        { { 0, 1, 0}, { 1, 0, 0}, {0, 0,-1} },
+        { { 0,-1, 0}, { 1, 0, 0}, {0, 0, 1} },
+    };
+    std::vector<float> v;
+    std::vector<unsigned int> tris, lines;
+    for (int f = 0; f < 6; ++f) {
+        const Face& F = faces[f];
+        glm::vec3 c[4] = {
+            F.n * 0.5f - F.u * 0.5f - F.v * 0.5f,
+            F.n * 0.5f + F.u * 0.5f - F.v * 0.5f,
+            F.n * 0.5f + F.u * 0.5f + F.v * 0.5f,
+            F.n * 0.5f - F.u * 0.5f + F.v * 0.5f,
+        };
+        unsigned int base = f * 4;
+        for (int k = 0; k < 4; ++k)
+            v.insert(v.end(), { c[k].x, c[k].y, c[k].z, F.n.x, F.n.y, F.n.z });
+        tris.insert(tris.end(), { base, base + 1, base + 2, base + 2, base + 3, base });
+        lines.insert(lines.end(), { base, base + 1, base + 1, base + 2, base + 2, base + 3, base + 3, base });
+    }
+    return createMesh(v, tris, lines);
 }
 
 void drawGrid(unsigned int shaderProgram) {
@@ -195,44 +248,6 @@ void drawGrid(unsigned int shaderProgram) {
     glBindVertexArray(0);
 }
 
-std::vector<unsigned int> getSphereIndices(int sectors, int stacks) {
-    std::vector<unsigned int> indices;
-    for (int i = 0; i < stacks; ++i) {
-        for (int j = 0; j < sectors; ++j) {
-            int first = i * (sectors + 1) + j;
-            int second = first + sectors + 1;
-            indices.push_back(first);
-            indices.push_back(second);
-            indices.push_back(first + 1);
-            indices.push_back(second);
-            indices.push_back(second + 1);
-            indices.push_back(first + 1);
-        }
-    }
-    return indices;
-}
-
-void setupMesh(unsigned int& VAO, unsigned int& VBO, unsigned int& EBO, const std::vector<float>& vertices, const std::vector<unsigned int>& indices = {}) {
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-
-    if (!indices.empty()) {
-        glGenBuffers(1, &EBO);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
-    }
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    glBindVertexArray(0);
-}
-
 void shaderInfoLog(unsigned int shader,const std::string& type ,unsigned int status) {
     int ok; char info[512];
     if (type == "VERTEX" || type == "FRAGMENT") {
@@ -279,41 +294,26 @@ unsigned int createShaderProgram() {
     return shaderProgram;
 }
 
-// Draw cuboid 
-void drawCuboid(unsigned int shaderProgram, unsigned int VAO, glm::mat4 parentModel,
-        glm::vec3 localPos, glm::vec3 scale, glm::vec3 rotion, glm::vec3 color) {
-    glm::mat4 model = glm::translate(parentModel, localPos);
-    model = glm::rotate(model, rotion.x, glm::vec3(1,0,0));
-    model = glm::rotate(model, rotion.y, glm::vec3(0,1,0));
-    model = glm::rotate(model, rotion.z, glm::vec3(0,0,1));
-    model = glm::scale(model, scale);
-
+// Draws a mesh as a filled surface plus dark outline lines
+void drawMesh(unsigned int shaderProgram, const Mesh& m, const glm::mat4& model,
+              glm::vec3 fillColor, glm::vec3 lineColor) {
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "objectColor"),1, glm::value_ptr(color));
-    glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-    glBindVertexArray(0);
-}
+    glBindVertexArray(m.VAO);
 
-void drawSphere(unsigned int shaderProgram, unsigned int VAO, GLsizei indexCount ,glm::mat4 parentModel,
-        glm::vec3 localPos, float radius, glm::vec3 color) {
-    std::cout << "Entered drawSphere() and translating the parent model" << std::endl;
-    glm::mat4 model = glm::translate(parentModel, localPos);
-    std::cout << "Finished translating parentModel and now scaling." << std::endl;
-    model = glm::scale(model, glm::vec3(radius * 2.0f)); // Sphere base 
-    std::cout << "Finished Scaling the model" << std::endl;
+    // Filled surface (pushed back slightly so the outline lines win the depth test)
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(1.0f, 1.0f);
+    glUniform3fv(glGetUniformLocation(shaderProgram, "objectColor"), 1, glm::value_ptr(fillColor));
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.triEBO);
+    glDrawElements(GL_TRIANGLES, m.triCount, GL_UNSIGNED_INT, 0);
+    glDisable(GL_POLYGON_OFFSET_FILL);
 
-    std::cout << "Setting the model uniform object using glUniformMatrix4fv" << std::endl;
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-    std::cout << "Finished setting up model and now setting up object colot" << std::endl;
-    glUniform3fv(glGetUniformLocation(shaderProgram, "objectColor"), 1, glm::value_ptr(color));
-    std::cout << "Binding the ArrayBuffer using glBindVertexArray(VAO)" << std::endl;
-    glBindVertexArray(VAO);
-    std::cout << "Done calling glBindVertexArray and now callinf glDrawElements()" << std::endl;
-    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
-    std::cout << "Done calling glDrawElements and niw unbinding." << std::endl; 
+    // Outline
+    glUniform3fv(glGetUniformLocation(shaderProgram, "objectColor"), 1, glm::value_ptr(lineColor));
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.lineEBO);
+    glDrawElements(GL_LINES, m.lineCount, GL_UNSIGNED_INT, 0);
+
     glBindVertexArray(0);
-    std::cout << "Done unbinding." << std::endl;
 }
 
 int main() {
@@ -326,146 +326,131 @@ int main() {
     glfwMakeContextCurrent(window);
 
     glfwSetFramebufferSizeCallback(window, framebuffer_callback);
-    
+
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cout << "Failed to load GLAD." << std::endl;
         return -1;
     }
 
-    //GL_ENABLE(GL_DEPTH_TEST);
-    //GL_ENABLE(GL_LINE_SMOOTH);
-
     unsigned int shaderProgram = createShaderProgram();
     glUseProgram(shaderProgram);
 
-    // Setup Geometry 
-    unsigned int cubeVAO, cubeVBO, cubeEBO;
-    setupMesh(cubeVAO, cubeVBO, cubeEBO, getCubeVertices());
+    // ---------------- Geometry ----------------
+    Mesh sphere = createSphereMesh(16, 10);
+    Mesh cube   = createCubeMesh();
 
-    unsigned int sphereVAO, sphereVBO, sphereEBO;
-    std::vector<unsigned int> sIndices = getSphereIndices(32, 16);
-    setupMesh(sphereVAO, sphereVBO, sphereEBO, getSphereVertices(32, 16), sIndices);
+    // Capsule segments (radius, total length including rounded ends)
+    Mesh thigh    = createCapsuleMesh(0.070f, 0.390f);
+    Mesh shin     = createCapsuleMesh(0.055f, 0.370f);
+    Mesh upperArm = createCapsuleMesh(0.038f, 0.250f);
+    Mesh forearm  = createCapsuleMesh(0.033f, 0.220f);
+    Mesh hand     = createCapsuleMesh(0.028f, 0.100f);
 
-    // Setup Camera 
-    //glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 1.5f, 6.0f), glm::vec3(0.0f, 1.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    // ---------------- Camera ----------------
     glm::vec3 camPos = glm::vec3(0.0f, 5.0f, 10.0f);
     glm::mat4 view = glm::lookAt(camPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
-    // lighting
+    // ---------------- Lighting ----------------
     glm::vec3 lightPos = glm::vec3(5.0f, 5.0f, 5.0f);
-    //glm::vec3 viewPos = glm::vec3( 0.0f, 1.5f, 6.0f);
-    glm::vec3 viewPos = camPos;
     glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos"), 1, glm::value_ptr(lightPos));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(camPos));
 
-    // Animation variables 
-    float time = 0.0f;
-    glm::vec3 white(0.9f, 0.9f, 0.9f);
-    GLsizei sphereIndexCount = (GLsizei)sIndices.size();
+    // ---------------- Colors ----------------
+    const glm::vec3 white (0.85f, 0.85f, 0.85f);   // body segments
+    const glm::vec3 jointC(0.12f, 0.12f, 0.12f);   // dark joint pieces
+    const glm::vec3 lineC (0.03f, 0.03f, 0.03f);   // outline lines
+
+    // Overall figure scale (the model below is built ~1.8 units tall, feet on y = 0)
+    const float FIGURE_SCALE = 1.4f;
 
     while (!glfwWindowShouldClose(window)) {
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             glfwSetWindowShouldClose(window, true);
         }
-        time += 0.016f; // Approx 60 FPS 
 
         glEnable(GL_DEPTH_TEST);
-        glEnable(GL_LINE_SMOOTH);
-
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         drawGrid(shaderProgram);
 
-        //GLsizei sphereIndexCount = (GLsizei)sIndices.size();
+        glm::mat4 figure = glm::scale(glm::mat4(1.0f), glm::vec3(FIGURE_SCALE));
 
-              // 1. ROOT (Pelvis/Hip Center)
-        // Bobbing motion for "person-like" feel
-        float bob = sin(time * 2.0f) * 0.05f;
-        glm::mat4 rootTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f + bob, 0.0f));
-        
-        drawSphere(shaderProgram, sphereVAO, sphereIndexCount,rootTransform, glm::vec3(0,0,0), 0.25f, white);
+        // Small helpers --------------------------------------------------
+        // Ellipsoid / sphere of the given diameters, centered at p (in parent space)
+        auto ellipsoid = [&](const glm::mat4& parent, glm::vec3 p, glm::vec3 diameter,
+                             glm::vec3 fill, glm::vec3 line) {
+            glm::mat4 m = glm::translate(parent, p);
+            m = glm::scale(m, diameter);
+            drawMesh(shaderProgram, sphere, m, fill, line);
+        };
+        // Dark ball joint
+        auto joint = [&](const glm::mat4& parent, glm::vec3 p, float diameter) {
+            ellipsoid(parent, p, glm::vec3(diameter), jointC, jointC * 2.0f);
+        };
+        // Capsule segment hanging DOWN from a joint (centered halfway along its length)
+        auto segment = [&](const Mesh& cap, const glm::mat4& jointFrame, float jointDistance) {
+            drawMesh(shaderProgram, cap, glm::translate(jointFrame, glm::vec3(0.0f, -jointDistance * 0.5f, 0.0f)),
+                     white, lineC);
+        };
 
-        // 2. TORSO
-        glm::mat4 torso = glm::translate(rootTransform, glm::vec3(0.0f, 0.3f, 0.0f));
-        torso = glm::rotate(torso, (float)sin(time * 1.5f) * 0.1f, glm::vec3(0,0,1)); // slight sway
-        // Spine
-        drawCuboid(shaderProgram, cubeVAO, torso, glm::vec3(0.0f, 0.2f, 0.0f), glm::vec3(0.2f, 0.4f, 0.15f), glm::vec3(0), white);
-        drawSphere(shaderProgram, sphereVAO, sphereIndexCount, torso, glm::vec3(0.0f, 0.4f, 0.0f), 0.15f, white); // Neck joint
+        // ---------------- TORSO (stacked spheres, like the reference) ----------------
+        ellipsoid(figure, glm::vec3(0.0f, 1.00f, 0.0f), glm::vec3(0.23f, 0.20f, 0.18f), white, lineC); // pelvis
+        ellipsoid(figure, glm::vec3(0.0f, 1.14f, 0.0f), glm::vec3(0.15f, 0.13f, 0.13f), white, lineC); // abdomen
+        ellipsoid(figure, glm::vec3(0.0f, 1.39f, 0.0f), glm::vec3(0.34f, 0.30f, 0.22f), white, lineC); // chest
 
-        // 3. HEAD
-        glm::mat4 head = glm::translate(torso, glm::vec3(0.0f, 0.5f, 0.0f));
-        head = glm::rotate(head, (float)sin(time) * 0.2f, glm::vec3(0,1,0)); // Look around
-        drawCuboid(shaderProgram, cubeVAO, head, glm::vec3(0.0f, 0.1f, 0.0f), glm::vec3(0.2f, 0.2f, 0.2f), glm::vec3(0), white);
+        // ---------------- NECK + HEAD ----------------
+        joint(figure, glm::vec3(0.0f, 1.57f, 0.0f), 0.07f);
+        ellipsoid(figure, glm::vec3(0.0f, 1.69f, 0.0f), glm::vec3(0.20f, 0.23f, 0.21f), white, lineC);
 
-        // 4. ARMS
-        // Shoulder Joints
-        drawSphere(shaderProgram, sphereVAO, sphereIndexCount, torso, glm::vec3(-0.2f, 0.35f, 0.0f), 0.08f, white);
-        drawSphere(shaderProgram, sphereVAO, sphereIndexCount, torso, glm::vec3( 0.2f, 0.35f, 0.0f), 0.08f, white);
+        // ---------------- ARMS (hanging at the sides) ----------------
+        for (int s = -1; s <= 1; s += 2) {
+            float side = (float)s;   // -1 = left, +1 = right
 
-        // Left Arm
-        glm::mat4 leftShoulder = glm::translate(torso, glm::vec3(-0.2f, 0.35f, 0.0f));
-        // Arm swing animation
-        float armSwingL = sin(time * 2.0f) * 0.5f;
-        leftShoulder = glm::rotate(leftShoulder, armSwingL, glm::vec3(1,0,0));
-        leftShoulder = glm::rotate(leftShoulder, -0.2f, glm::vec3(0,0,1)); // slight outward tilt
-        drawCuboid(shaderProgram, cubeVAO, leftShoulder, glm::vec3(0.0f, -0.2f, 0.0f), glm::vec3(0.1f, 0.4f, 0.1f), glm::vec3(0), white);
-        // Elbow
-        drawSphere(shaderProgram, sphereVAO, sphereIndexCount, leftShoulder, glm::vec3(0.0f, -0.4f, 0.0f), 0.07f, white);
-        glm::mat4 leftElbow = glm::translate(leftShoulder, glm::vec3(0.0f, -0.4f, 0.0f));
-        leftElbow = glm::rotate(leftElbow, std::max(0.0f, armSwingL), glm::vec3(1,0,0)); // Forearm follows up
-        drawCuboid(shaderProgram, cubeVAO, leftElbow, glm::vec3(0.0f, -0.2f, 0.0f), glm::vec3(0.08f, 0.4f, 0.08f), glm::vec3(0), white);
-        // Hand
-        drawCuboid(shaderProgram, cubeVAO, leftElbow, glm::vec3(0.0f, -0.45f, 0.0f), glm::vec3(0.1f, 0.1f, 0.1f), glm::vec3(0), white);
+            // Shoulder
+            glm::mat4 shoulder = glm::translate(figure, glm::vec3(side * 0.215f, 1.47f, 0.0f));
+            shoulder = glm::rotate(shoulder, side * 0.08f, glm::vec3(0, 0, 1));  // slightly away from body
+            joint(shoulder, glm::vec3(0.0f), 0.075f);
+            segment(upperArm, shoulder, 0.28f);
 
-        // Right Arm
-        glm::mat4 rightShoulder = glm::translate(torso, glm::vec3(0.2f, 0.35f, 0.0f));
-        float armSwingR = -sin(time * 2.0f) * 0.5f;
-        rightShoulder = glm::rotate(rightShoulder, armSwingR, glm::vec3(1,0,0));
-        rightShoulder = glm::rotate(rightShoulder, 0.2f, glm::vec3(0,0,1));
-        drawCuboid(shaderProgram, cubeVAO, rightShoulder, glm::vec3(0.0f, -0.2f, 0.0f), glm::vec3(0.1f, 0.4f, 0.1f), glm::vec3(0), white);
-        // Elbow
-        drawSphere(shaderProgram, sphereVAO, sphereIndexCount,rightShoulder, glm::vec3(0.0f, -0.4f, 0.0f), 0.07f, white);
-        glm::mat4 rightElbow = glm::translate(rightShoulder, glm::vec3(0.0f, -0.4f, 0.0f));
-        rightElbow = glm::rotate(rightElbow, std::max(0.0f, armSwingR), glm::vec3(1,0,0));
-        drawCuboid(shaderProgram, cubeVAO, rightElbow, glm::vec3(0.0f, -0.2f, 0.0f), glm::vec3(0.08f, 0.4f, 0.08f), glm::vec3(0), white);
-        // Hand
-        drawCuboid(shaderProgram, cubeVAO, rightElbow, glm::vec3(0.0f, -0.45f, 0.0f), glm::vec3(0.1f, 0.1f, 0.1f), glm::vec3(0), white);
+            // Elbow (slight forward bend)
+            glm::mat4 elbow = glm::translate(shoulder, glm::vec3(0.0f, -0.28f, 0.0f));
+            elbow = glm::rotate(elbow, -0.25f, glm::vec3(1, 0, 0));
+            joint(elbow, glm::vec3(0.0f), 0.060f);
+            segment(forearm, elbow, 0.25f);
 
-        // 5. LEGS
-        // Hip Joints
-        drawSphere(shaderProgram, sphereVAO, sphereIndexCount, rootTransform, glm::vec3(-0.15f, -0.1f, 0.0f), 0.1f, white);
-        drawSphere(shaderProgram, sphereVAO, sphereIndexCount, rootTransform, glm::vec3( 0.15f, -0.1f, 0.0f), 0.1f, white);
+            // Wrist + hand
+            glm::mat4 wrist = glm::translate(elbow, glm::vec3(0.0f, -0.25f, 0.0f));
+            joint(wrist, glm::vec3(0.0f), 0.050f);
+            segment(hand, wrist, 0.11f);
+        }
 
-        // Left Leg
-        glm::mat4 leftHip = glm::translate(rootTransform, glm::vec3(-0.15f, -0.1f, 0.0f));
-        float legSwingL = sin(time * 2.0f) * 0.3f;
-        leftHip = glm::rotate(leftHip, legSwingL, glm::vec3(1,0,0));
-        drawCuboid(shaderProgram, cubeVAO, leftHip, glm::vec3(0.0f, -0.25f, 0.0f), glm::vec3(0.15f, 0.5f, 0.15f), glm::vec3(0), white);
-        // Knee
-        drawSphere(shaderProgram, sphereVAO, sphereIndexCount, leftHip, glm::vec3(0.0f, -0.5f, 0.0f), 0.1f, white);
-        glm::mat4 leftKnee = glm::translate(leftHip, glm::vec3(0.0f, -0.5f, 0.0f));
-        leftKnee = glm::rotate(leftKnee, std::max(0.0f, -legSwingL), glm::vec3(1,0,0));
-        drawCuboid(shaderProgram, cubeVAO, leftKnee, glm::vec3(0.0f, -0.25f, 0.0f), glm::vec3(0.12f, 0.5f, 0.12f), glm::vec3(0), white);
-        // Foot
-        drawCuboid(shaderProgram, cubeVAO, leftKnee, glm::vec3(0.0f, -0.55f, 0.05f), glm::vec3(0.15f, 0.1f, 0.25f), glm::vec3(0), white);
+        // ---------------- LEGS (straight, feet flat on the floor) ----------------
+        for (int s = -1; s <= 1; s += 2) {
+            float side = (float)s;
 
-        // Right Leg
-        glm::mat4 rightHip = glm::translate(rootTransform, glm::vec3(0.15f, -0.1f, 0.0f));
-        float legSwingR = -sin(time * 2.0f) * 0.3f;
-        rightHip = glm::rotate(rightHip, legSwingR, glm::vec3(1,0,0));
-        drawCuboid(shaderProgram, cubeVAO, rightHip, glm::vec3(0.0f, -0.25f, 0.0f), glm::vec3(0.15f, 0.5f, 0.15f), glm::vec3(0), white);
-        // Knee
-        drawSphere(shaderProgram, sphereVAO, sphereIndexCount, rightHip, glm::vec3(0.0f, -0.5f, 0.0f), 0.1f, white);
-        glm::mat4 rightKnee = glm::translate(rightHip, glm::vec3(0.0f, -0.5f, 0.0f));
-        rightKnee = glm::rotate(rightKnee, std::max(0.0f, -legSwingR), glm::vec3(1,0,0));
-        drawCuboid(shaderProgram, cubeVAO, rightKnee, glm::vec3(0.0f, -0.25f, 0.0f), glm::vec3(0.12f, 0.5f, 0.12f), glm::vec3(0), white);
-        // Foot
-        drawCuboid(shaderProgram, cubeVAO, rightKnee, glm::vec3(0.0f, -0.55f, 0.05f), glm::vec3(0.15f, 0.1f, 0.25f), glm::vec3(0), white);
+            // Hip
+            glm::mat4 hip = glm::translate(figure, glm::vec3(side * 0.085f, 0.935f, 0.0f));
+            joint(hip, glm::vec3(0.0f), 0.080f);
+            segment(thigh, hip, 0.42f);
 
+            // Knee
+            glm::mat4 knee = glm::translate(hip, glm::vec3(0.0f, -0.42f, 0.0f));
+            joint(knee, glm::vec3(0.0f), 0.070f);
+            segment(shin, knee, 0.41f);
+
+            // Ankle
+            glm::mat4 ankle = glm::translate(knee, glm::vec3(0.0f, -0.41f, 0.0f));
+            joint(ankle, glm::vec3(0.0f), 0.060f);
+
+            // Foot: flat box, toes pointing +Z (toward the camera)
+            glm::mat4 foot = glm::translate(ankle, glm::vec3(0.0f, -0.07f, 0.04f));
+            foot = glm::scale(foot, glm::vec3(0.10f, 0.07f, 0.24f));
+            drawMesh(shaderProgram, cube, foot, white, lineC);
+        }
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -473,5 +458,3 @@ int main() {
     glfwTerminate();
     return 0;
 }
-
-
